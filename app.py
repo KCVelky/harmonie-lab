@@ -34,6 +34,7 @@ st.caption('Accordage, excitation électromagnétique et écoute de la table d�
 GEO_DEFAULT=dict(height=1.524,frame_width=.305,depth=.305,plate_bottom=.420,
                  technical_height=.610,installation_height=0.)
 PLATE_SCALES=dict(H=1000,W=1000,h=1000,Es=1e-9,Eu=1e-9,G=1e-9,bridge_s=1000,bridge_mass=1000)
+SUPPORT_SCALES=dict(width=1000,depth=1000,E=1e-9)
 COLS={
  'active':('Active',1),'L':('L (mm)',1000),'d':('d (mm)',1000),'T':('T (N)',1),
  'rho':('rho (kg/m³)',1),'E':('E (GPa)',1e-9),'beta':('Chevalet / L',1),
@@ -96,7 +97,7 @@ if 'pending' in st.session_state:
         st.session_state.harmonics_applied=[int(x) for x in pending['harmonics']]
     for k,v in g0.items(): st.session_state['g_'+k]=v*1000
     for k,v in asdict(support0).items():
-        st.session_state['support_'+k]=v*1000 if k in ('width','depth') else v
+        st.session_state['support_'+k]=v*SUPPORT_SCALES.get(k,1)
     st.session_state.project_name=pending.get('scenario','Configuration chargée')
     st.session_state.revision+=1
 if 'new_h' in st.session_state:
@@ -106,9 +107,11 @@ def material_change():
     mat=MATERIALS[st.session_state.material]
     for k in ('rho','Es','Eu','G','nu'): st.session_state['p_'+k]=mat[k]
 
-def number(label,key,value,minv,maxv,step,help=None):
+def number(label,key,value,minv,maxv,step,help=None,format=None):
     if key not in st.session_state: st.session_state[key]=value
-    return st.number_input(label,min_value=minv,max_value=maxv,step=step,key=key,help=help)
+    options=dict(min_value=minv,max_value=maxv,step=step,key=key,help=help)
+    if format is not None: options['format']=format
+    return st.number_input(label,**options)
 
 with st.sidebar:
     st.header('Table d’harmonie')
@@ -130,7 +133,7 @@ with st.sidebar:
     p0=Plate()
     H=number('Hauteur libre (mm)','p_H',610.,50.,5000.,10.)/1000
     W=number('Largeur libre (mm)','p_W',305.,50.,5000.,5.)/1000
-    h=number('Épaisseur (mm)','p_h',2.,.2,30.,.1)/1000
+    h=number('Épaisseur (mm)','p_h',2.,.2,30.,.025,format='%.3f')/1000
     boundary=st.selectbox('Quatre bords', ['Appuis simples','Rotation élastique','Encastrement'],key='p_boundary')
     rotation=number('Raideur de rotation linéique (N)','p_rotation',10.,0.,100000.,1.,
                     'Rotation élastique : w=0 au bord, ressort distribué opposé à la pente. Ne représente pas un joint souple en translation.')
