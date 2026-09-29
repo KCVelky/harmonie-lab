@@ -67,6 +67,7 @@ def test_ui_museum_scenario():
     assert abs(at.number_input(key='p_H').value-2438.4)<.01
     assert abs(at.number_input(key='p_W').value-1524)<.01
     assert abs(at.number_input(key='p_h').value-3.175)<.001
+    assert abs(at.number_input(key='p_bridge_s').value-2194.56)<.01
     assert at.checkbox(key='support_enabled').value
     assert at.number_input(key='support_E').value==10
     assert at.number_input(key='g_installation_height').value==15000

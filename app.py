@@ -117,7 +117,7 @@ with st.sidebar:
     st.header('Table d’harmonie')
     if st.button('Charger le scénario musée · 5 × 8 pi',type='primary',width='stretch'):
         museum_plate=Plate(H=2.4384,W=1.524,h=.003175,rho=650.,Es=10e9,Eu=10e9,
-                           G=10e9/2.6,nu=.30,boundary='Appuis simples',bridge_s=.48768,
+                           G=10e9/2.6,nu=.30,boundary='Appuis simples',bridge_s=2.19456,
                            bridge_mass=.010,damping=.012,order=6)
         museum_geo=dict(height=2.4384,frame_width=1.524,depth=.305,plate_bottom=0.,
                         technical_height=.610,installation_height=15.)
@@ -127,6 +127,7 @@ with st.sidebar:
         data['scenario']='Table du musée · hypothèses préliminaires'
         st.session_state.pending=data
         st.rerun()
+    st.caption('Scénario musée : chevalet placé provisoirement à 10 % sous le bord supérieur.')
     st.selectbox('Matériau',list(MATERIALS),key='material',on_change=material_change)
     mat=MATERIALS[st.session_state.material]
     st.caption(mat['note'])
