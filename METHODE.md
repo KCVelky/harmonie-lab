@@ -2,7 +2,7 @@
 
 La plaque rectangulaire est décrite par la théorie de Kirchhoff–Love, en petites déformations, avec propriétés orthotropes homogénéisées. Les cordes ont une tension imposée et une rigidité de flexion. Les ancrages sont fixes et indépendants de la plaque. Chaque corde peut être excitée en deux points.
 
-La traction du châssis n'est pas appliquée en compression à la plaque. Le chevalet ajoute une masse répartie sur une ligne transversale, mais sa rigidité propre n'est pas calculée. Les vis et le cadre sont visuels ; leur souplesse individuelle n'est pas résolue.
+La traction du châssis n'est pas appliquée en compression à la plaque. Le chevalet ajoute une masse répartie sur une ligne transversale, mais sa rigidité propre n'est pas calculée. Les vis et le cadre périphérique sont visuels ; leur souplesse individuelle est remplacée par la condition de bord choisie. Une traverse centrale optionnelle peut en revanche ajouter sa masse et sa rigidité au modèle.
 
 Le chevalet est un contact **intermédiaire** sur chaque corde : sa position βL est comptée depuis l'ancrage inférieur, et L désigne la distance entre les deux ancrages. Si les 800–1200 mm de Sandra correspondent au segment chevalet–ancrage supérieur, il faut entrer une autre longueur totale. Le modèle ne prétend pas trancher cette ambiguïté de construction.
 
@@ -21,6 +21,12 @@ Les intégrales utilisent une quadrature de Gauss. La résolution de K v=ω² M 
 - **Encastrement** : base de Ritz formée de polynômes de Legendre multipliés par ξ²(1−ξ)² sur chaque axe. Déplacement et pente sont nuls exactement aux bords. Les fréquences approchées convergent en enrichissant la base.
 
 Un joint flexible en translation n'est pas représenté. On ne peut donc pas affirmer que tout montage par vis/joint aura automatiquement sa fréquence entre les deux modèles limites. Les modes élevés, les matériaux fortement anisotropes et les angles de fil obliques demandent une vérification de convergence.
+
+### Jonction centrale et traverse en bois
+
+Le scénario « Table du musée » représente deux panneaux coplanaires dont le collage central est supposé parfait. La continuité de déplacement et de pente est donc celle d'une plaque homogénéisée ; une fissure, un glissement ou une couche de colle souple ne sont pas résolus.
+
+La pièce de bois placée sous la jonction est une poutre verticale d'Euler–Bernoulli solidaire de la plaque. Pour une section de largeur b et de profondeur d, elle ajoute une masse linéique ρbd et une rigidité de flexion Ebd³/12. L'énergie et la masse sont intégrées le long de la ligne u=u_j. Ce modèle permet d'étudier l'effet préliminaire d'une traverse, mais pas les contraintes locales dans la colle ni les assemblages au cadre.
 
 ### Cordes, tension et couplage
 
@@ -48,6 +54,8 @@ Les deux aimants d'une corde ont une position, un entrefer, un gain et une phase
 
 Le balayage applique une fréquence commune aux aimants actifs ; les phases sont conservées. L'écoute entretenue utilise les fréquences individuelles de chaque corde.
 
+Le tableau « Quelles fréquences la table joue-t-elle ? » évalue séparément chaque corde à sa fréquence imposée. Les catégories forte, moyenne et faible sont définies relativement à la plus grande accélération de la configuration : au-dessus de −6 dB, entre −18 et −6 dB, puis sous −18 dB. Elles servent à repérer un déséquilibre interne et ne constituent pas un niveau sonore absolu.
+
 ### Son : ce que l'on entend
 
 Le WAV est une sonification de l'accélération normale en un point choisi de la plaque. Le régime entretenu superpose les réponses forcées. Le régime impulsionnel applique une impulsion équivalente de 1 ms aux points d'excitation puis laisse décroître les modes ; les phases de commande sont ignorées dans ce régime.
@@ -63,6 +71,8 @@ Références reprises : châssis 1524 × 305 × 305 mm ; plaque libre 610 × 305
 Hypothèses ajoutées et modifiables : plaque à 420 mm du sol, 16 N par corde, masse de chevalet de 10 g, β=0,28, contact k_c=500 N/m, angles de 3°, aimants à 0,12L et 0,20L avec jeux de 3 mm et force de référence 0,01 N. Les positions intermédiaires de longueur ne sont pas des valeurs mesurées fournies par Sandra.
 
 La largeur libre 305 mm plus les appuis périphériques ne tient pas dans un châssis extérieur de 305 mm. Le diagnostic conserve cette contradiction pour qu'elle soit corrigée explicitement. Les pièces visibles ont des sections schématiques ; ce n'est pas un plan de fabrication.
+
+Le scénario musée utilise une surface verticale de 1524 × 2438,4 × 3,175 mm, assemblée à partir de deux panneaux de 762 × 2438,4 mm. L'élévation enregistrée est 15 m. Faute d'autres dimensions, la traverse centrale est supposée carrée, 38,1 × 38,1 mm, avec ρ=500 kg/m³ et E=10 GPa. La plaque est prise en appuis simples, le dos est ouvert et le matériau reprend provisoirement l'hypothèse isotrope historique. Ces choix doivent faire l'objet d'une étude de sensibilité avant verdict.
 
 ### Matériaux et sources
 

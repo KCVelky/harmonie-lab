@@ -59,3 +59,13 @@ def test_ui_invalid_geometry_is_reported():
     at.number_input(key='p_bridge_s').set_value(900.).run()
     assert not at.exception
     assert any('Chevalet' in x.value for x in at.error)
+
+def test_ui_museum_scenario():
+    at=app()
+    button(at,'Charger le scénario musée · 5 × 8 pi').click().run()
+    assert not at.exception
+    assert abs(at.number_input(key='p_H').value-2438.4)<.01
+    assert abs(at.number_input(key='p_W').value-1524)<.01
+    assert abs(at.number_input(key='p_h').value-3.175)<.001
+    assert at.checkbox(key='support_enabled').value
+    assert at.number_input(key='g_installation_height').value==15000

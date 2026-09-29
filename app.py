@@ -8,7 +8,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
-from physics import (Plate,String,defaults,assemble,basis,string_frequencies,tension_for,
+from physics import (Plate,Support,String,defaults,assemble,basis,string_frequencies,tension_for,
                      response,target_thickness,synthesize,config_dict,validate,
                      harmonic_drive_settings,plate_observation,sequence_plan,
                      synthesize_sequence)
@@ -31,7 +31,8 @@ h1,h2,h3 {letter-spacing:-.025em}
 st.title('Harmonie Lab')
 st.caption('Accordage, excitation électromagnétique et écoute de la table d’harmonie')
 
-GEO_DEFAULT=dict(height=1.524,frame_width=.305,depth=.305,plate_bottom=.420,technical_height=.610)
+GEO_DEFAULT=dict(height=1.524,frame_width=.305,depth=.305,plate_bottom=.420,
+                 technical_height=.610,installation_height=0.)
 PLATE_SCALES=dict(H=1000,W=1000,h=1000,Es=1e-9,Eu=1e-9,G=1e-9,bridge_s=1000,bridge_mass=1000)
 COLS={
  'active':('Active',1),'L':('L (mm)',1000),'d':('d (mm)',1000),'T':('T (N)',1),
@@ -52,6 +53,7 @@ def from_rows(rows):
 def load_config(data):
     if data.get('version')!=1: raise ValueError('Version de configuration inconnue.')
     p=Plate(**data['plate']); strings=[String(**s) for s in data['strings']]
+    support=Support(**data.get('support',{}))
     if not 1<=len(strings)<=12: raise ValueError('Il faut 1 à 12 cordes.')
     validate(p,strings)
     limits=dict(H=(.05,5),W=(.05,5),h=(.0002,.03),rho=(50,20000),
@@ -64,14 +66,15 @@ def load_config(data):
     if p.boundary not in ['Appuis simples','Rotation élastique','Encastrement']:
         raise ValueError('Condition limite inconnue.')
     geo={**GEO_DEFAULT,**data.get('geometry',{})}
-    if any(not np.isfinite(float(v)) or not 0<=float(v)<=10 for v in geo.values()):
+    if any(not np.isfinite(float(v)) or not 0<=float(v)<=30 for v in geo.values()):
         raise ValueError('Géométrie invalide.')
     ns=int(data.get('string_modes',8))
     if not 2<=ns<=16: raise ValueError('Nombre de modes de corde hors limites.')
     harmonics=data.get('harmonics',[])
     if harmonics and (len(harmonics)!=len(strings) or any(int(x)!=x or not 1<=int(x)<=ns for x in harmonics)):
         raise ValueError('Sélection d’harmoniques invalide.')
-    return p,strings,geo,ns
+    validate(p,strings,support)
+    return p,strings,geo,ns,support
 
 def queue_plate(p):
     for k,v in asdict(p).items():
@@ -83,7 +86,7 @@ if 'rows' not in st.session_state:
     st.session_state.material=list(MATERIALS)[0]
 if 'pending' in st.session_state:
     pending=st.session_state.pop('pending')
-    p0,s0,g0,ns0=load_config(pending)
+    p0,s0,g0,ns0,support0=load_config(pending)
     queue_plate(p0); st.session_state.rows=to_rows(s0)
     st.session_state.nstrings=len(s0); st.session_state.ns=ns0
     st.session_state.material='Personnalisé'
@@ -92,6 +95,9 @@ if 'pending' in st.session_state:
     if pending.get('harmonics'):
         st.session_state.harmonics_applied=[int(x) for x in pending['harmonics']]
     for k,v in g0.items(): st.session_state['g_'+k]=v*1000
+    for k,v in asdict(support0).items():
+        st.session_state['support_'+k]=v*1000 if k in ('width','depth') else v
+    st.session_state.project_name=pending.get('scenario','Configuration chargée')
     st.session_state.revision+=1
 if 'new_h' in st.session_state:
     st.session_state.p_h=st.session_state.pop('new_h')
@@ -106,6 +112,18 @@ def number(label,key,value,minv,maxv,step,help=None):
 
 with st.sidebar:
     st.header('Table d’harmonie')
+    if st.button('Charger le scénario musée · 5 × 8 pi',type='primary',width='stretch'):
+        museum_plate=Plate(H=2.4384,W=1.524,h=.003175,rho=650.,Es=10e9,Eu=10e9,
+                           G=10e9/2.6,nu=.30,boundary='Appuis simples',bridge_s=.48768,
+                           bridge_mass=.010,damping=.012,order=6)
+        museum_geo=dict(height=2.4384,frame_width=1.524,depth=.305,plate_bottom=0.,
+                        technical_height=.610,installation_height=15.)
+        museum_support=Support(enabled=True,width=.0381,depth=.0381,rho=500.,E=10e9)
+        data=config_dict(museum_plate,from_rows(st.session_state.rows),museum_geo,
+                         int(st.session_state.get('ns',8)),museum_support)
+        data['scenario']='Table du musée · hypothèses préliminaires'
+        st.session_state.pending=data
+        st.rerun()
     st.selectbox('Matériau',list(MATERIALS),key='material',on_change=material_change)
     mat=MATERIALS[st.session_state.material]
     st.caption(mat['note'])
@@ -129,17 +147,31 @@ with st.sidebar:
         bm=number('Masse totale du chevalet (g)','p_bridge_mass',10.,0.,2000.,1.)/1000
         order=int(number('Fonctions par axe de plaque','p_order',6,3,10,1))
         ns=int(number('Modes par corde','ns',8,2,16,1))
+    with st.expander('Jonction et structure en bois'):
+        support_enabled=st.checkbox('Traverse sous la jonction centrale',key='support_enabled',
+            help='Représente une pièce de bois verticale collée derrière la jonction des deux panneaux.')
+        joint_u=number('Position de la jonction — u/W','support_joint_u',.5,.05,.95,.01)
+        support_width=number('Largeur de la traverse (mm)','support_width',38.1,1.,500.,1.)/1000
+        support_depth=number('Profondeur supposée (mm)','support_depth',38.1,1.,500.,1.)/1000
+        support_rho=number('Masse volumique du bois (kg/m³)','support_rho',500.,100.,1500.,10.)
+        support_E=number('Rigidité du bois E (GPa)','support_E',10.,.1,100.,.5)*1e9
+        st.caption('La plaque reste continue : le collage est supposé parfait. La traverse ajoute sa masse et sa rigidité. Sa profondeur de 38,1 mm est une hypothèse modifiable.')
     with st.expander('Châssis : vue 3D'):
         geo={}
         labels=dict(height='Hauteur châssis',frame_width='Largeur châssis',depth='Profondeur châssis',
-                    plate_bottom='Bas de plaque / sol',technical_height='Hauteur zone technique')
+                    plate_bottom='Bas de plaque / châssis',technical_height='Hauteur zone technique',
+                    installation_height='Élévation dans le musée')
         for k,v in GEO_DEFAULT.items():
-            geo[k]=number(labels[k]+' (mm)','g_'+k,v*1000,0.,10000.,10.)/1000
+            geo[k]=number(labels[k]+' (mm)','g_'+k,v*1000,0.,30000.,10.)/1000
     if st.button('Réinitialiser le prototype'):
-        st.session_state.pending=config_dict(Plate(),defaults(),GEO_DEFAULT,8); st.rerun()
+        data=config_dict(Plate(),defaults(),GEO_DEFAULT,8,Support())
+        data['scenario']='Prototype de référence'
+        st.session_state.pending=data; st.rerun()
 
 p=Plate(H=H,W=W,h=h,rho=rho,Es=Es,Eu=Eu,G=G,nu=nu,angle=angle,boundary=boundary,
         rotation=rotation,order=order,bridge_s=bs,bridge_mass=bm,damping=damping)
+support=Support(enabled=support_enabled,joint_u=joint_u,width=support_width,
+                depth=support_depth,rho=support_rho,E=support_E)
 with st.expander('Réglages avancés des cordes et des électroaimants',expanded=False):
     n=int(number('Nombre de cordes','nstrings',5,1,12,1))
     rows=st.session_state.rows
@@ -157,22 +189,58 @@ with st.expander('Réglages avancés des cordes et des électroaimants',expanded
                          key='strings_'+str(st.session_state.revision))
     st.session_state.rows=edited.to_dict('records')
 try:
-    strings=from_rows(st.session_state.rows); validate(p,strings)
+    strings=from_rows(st.session_state.rows); validate(p,strings,support)
 except (ValueError,TypeError) as exc:
     st.error(str(exc)); st.stop()
 
 @st.cache_resource(max_entries=8,show_spinner='Calcul des modes couplés…')
-def compute(p,strings,ns):
-    return assemble(p,strings,ns)
-try: model=compute(p,tuple(strings),ns)
+def compute(p,strings,ns,support):
+    return assemble(p,strings,ns,support)
+try: model=compute(p,tuple(strings),ns,support)
 except (ValueError,np.linalg.LinAlgError) as exc:
     st.error('Calcul impossible : '+str(exc)); st.stop()
 
+def level_labels(values):
+    values=np.asarray(values,dtype=float)
+    peak=max(float(np.max(values)) if len(values) else 0.,1e-30)
+    db=20*np.log10(np.maximum(values/peak,1e-8))
+    if len(values)==1:
+        labels=np.array(['Référence unique'])
+    else:
+        labels=np.where(db>=-6,'Forte',np.where(db>=-18,'Moyenne','Faible'))
+    return db,labels
+
+def current_drive_table(model,listener=None):
+    obs=plate_observation(model,listener); rows=[]
+    for i,s in enumerate(model['strings']):
+        if not s.active: continue
+        q=response(model,[s.drive],i)[:,0]
+        displacement=float(abs(obs@q))
+        nearest=int(np.argmin(abs(model['f']-s.drive)))
+        rows.append(dict(Corde=i+1,**{
+            'Fréquence imposée (Hz)':s.drive,
+            'Mode couplé le plus proche (Hz)':model['f'][nearest],
+            'Écart au mode (Hz)':s.drive-model['f'][nearest],
+            'Déplacement calculé (µm)':displacement*1e6,
+            'Accélération calculée (m/s²)':displacement*(2*np.pi*s.drive)**2}))
+    if rows:
+        db,labels=level_labels([r['Accélération calculée (m/s²)'] for r in rows])
+        for r,d,label in zip(rows,db,labels):
+            r['Niveau relatif (dB)']=float(d); r['Réponse relative']=label
+    return pd.DataFrame(rows)
+
+if st.session_state.get('project_name'):
+    st.info(f"Scénario actif : **{st.session_state.project_name}**")
+
 a,b,c,d=st.columns(4)
-a.metric('Plaque seule + masse chevalet',f"{model['fp'][0]:.1f} Hz")
+a.metric('Plaque + chevalet' + (' + traverse' if support.enabled else ''),f"{model['fp'][0]:.1f} Hz")
 b.metric('Premier mode couplé',f"{model['f'][0]:.1f} Hz")
 c.metric('Masse de plaque',f'{p.rho*p.H*p.W*p.h*1000:.0f} g')
 d.metric('Traction totale châssis',f'{sum(s.T for s in strings):.1f} N')
+if support.enabled:
+    support_mass=support.rho*support.width*support.depth*p.H
+    st.caption(f'Deux panneaux avec collage central supposé parfait · traverse centrale {support.width*1000:.1f} × {support.depth*1000:.1f} mm · masse ajoutée {support_mass:.2f} kg · élévation prévue {geo.get("installation_height",0):g} m.')
+st.markdown('**Commande → réponse :** les électroaimants imposent les fréquences des notes ; la table renforce ou atténue chacune d’elles selon sa réponse mécanique.')
 
 tabs=st.tabs(['Prototype 3D','Modes et animations','Réponse et son','Accordage et cibles'])
 with tabs[0]:
@@ -230,6 +298,19 @@ with tabs[2]:
         st.write('La **limite du balayage** est la fréquence la plus haute affichée dans le graphique. Une valeur plus grande explore davantage d’aigus, avec un calcul un peu plus long.')
     listener=None if listen_mode=='Table entière' else (os,ou)
     obs=plate_observation(model,listener)
+    drive_table=current_drive_table(model,listener)
+    with st.expander('Quelles fréquences la table joue-t-elle ?',expanded=True):
+        if drive_table.empty:
+            st.warning('Aucune corde active.')
+        else:
+            st.dataframe(drive_table,hide_index=True,width='stretch',column_config={
+                'Fréquence imposée (Hz)':st.column_config.NumberColumn(format='%.2f Hz'),
+                'Mode couplé le plus proche (Hz)':st.column_config.NumberColumn(format='%.2f Hz'),
+                'Écart au mode (Hz)':st.column_config.NumberColumn(format='%+.2f Hz'),
+                'Déplacement calculé (µm)':st.column_config.NumberColumn(format='%.4g'),
+                'Accélération calculée (m/s²)':st.column_config.NumberColumn(format='%.4g'),
+                'Niveau relatif (dB)':st.column_config.NumberColumn(format='%.1f dB')})
+            st.caption('La fréquence jouée reste la fréquence imposée. « Forte », « moyenne » ou « faible » compare uniquement les cordes actives de cette configuration ; ce n’est pas un niveau acoustique réel. Le mode voisin influence l’amplitude, mais n’ajoute pas sa fréquence au son entretenu.')
     fmax=st.slider('Limite du balayage (Hz)',100,4000,1000,50,
                    help='Borne supérieure de l’analyse fréquentielle affichée ci-dessous.')
     if st.button('Calculer la réponse fréquentielle'):
@@ -324,18 +405,45 @@ with tabs[3]:
             st.caption(f'{st.session_state.get("score_name","Séquence")} · {len(plan)} notes · durée {max(x["start_s"]+x["duration_s"] for x in plan):.2f} s')
             st.dataframe(score,hide_index=True,width='stretch',height=min(360,80+35*len(score)))
             control=pd.DataFrame(plan)
+            obs_sequence=plate_observation(model,None)
+            sequence_acceleration=[]
+            for event in plan:
+                si=int(event['string'])-1
+                setting=harmonic_drive_settings(strings[si],int(event['harmonic']))
+                setting=replace(setting,drive=event['frequency_hz'],
+                                force=setting.force*event['velocity'])
+                event_strings=list(strings); event_strings[si]=setting
+                event_model={**model,'strings':tuple(event_strings)}
+                q=response(event_model,[event['frequency_hz']],si)[:,0]
+                sequence_acceleration.append(float(abs(obs_sequence@q)*(2*np.pi*event['frequency_hz'])**2))
+            relative_db,quality=level_labels(sequence_acceleration)
+            control['table_acceleration_m_s2']=sequence_acceleration
+            control['table_relative_db']=relative_db
+            control['table_response']=quality
             display=control.rename(columns={
                 'start_ms':'Début (ms)','duration_ms':'Durée (ms)','note':'Note',
                 'frequency_hz':'Fréquence (Hz)','velocity':'Intensité','string':'Corde',
                 'harmonic':'Harmonique','magnet1_channel':'Canal aimant 1',
                 'magnet2_channel':'Canal aimant 2','p1':'Position aimant 1 / L',
-                'p2':'Position aimant 2 / L','phase2_deg':'Phase aimant 2 (°)'
+                'p2':'Position aimant 2 / L','phase2_deg':'Phase aimant 2 (°)',
+                'detune_cents':'Écart à la corde (cents)',
+                'table_relative_db':'Réponse table (dB relatif)',
+                'table_response':'Transmission estimée'
             })
             visible=['Début (ms)','Durée (ms)','Note','Fréquence (Hz)','Corde','Harmonique',
                      'Canal aimant 1','Canal aimant 2','Position aimant 1 / L',
-                     'Position aimant 2 / L','Phase aimant 2 (°)','Intensité']
+                     'Position aimant 2 / L','Phase aimant 2 (°)','Intensité',
+                     'Écart à la corde (cents)','Réponse table (dB relatif)','Transmission estimée']
             with st.expander('Prévisualiser le plan de pilotage',expanded=True):
                 st.dataframe(display[visible],hide_index=True,width='stretch')
+                weak=int(np.sum(np.asarray(quality)=='Faible'))
+                if len(plan)==1:
+                    st.info('Une seule note : sa réponse calculée est affichée, mais aucune autre note ne permet une comparaison relative.')
+                elif weak:
+                    st.warning(f'{weak} événement(s) présentent une réponse de table faible par rapport à la note la plus forte de cette séquence.')
+                else:
+                    st.success('Aucune note n’est fortement atténuée par rapport aux autres dans cette simulation.')
+                st.caption('Cette évaluation compare les accélérations calculées de la table entière. Elle ne prédit ni le volume réel dans le musée, ni les limites électriques des bobines.')
             dl1,dl2=st.columns(2)
             dl1.download_button('Télécharger le pilotage CSV',control.to_csv(index=False).encode('utf-8-sig'),
                                 'pilotage_electroaimants.csv','text/csv',width='stretch')
@@ -372,21 +480,23 @@ with tabs[3]:
     st.subheader('Ajuster l’épaisseur de la table à une résonance cible')
     pt=st.number_input('Résonance souhaitée de la plaque (Hz)',min_value=5.,max_value=3000.,value=61.)
     pm=st.selectbox('Mode de plaque à ajuster',range(min(12,len(model['fp']))),format_func=lambda i:f'Mode {i+1} · actuellement {model["fp"][i]:.1f} Hz')
+    thickness_signature=json.dumps(dict(plate=asdict(p),support=asdict(support)),sort_keys=True)
     if st.button('Calculer l’épaisseur correspondante'):
         try:
-            thickness=target_thickness(p,pt,pm)
-            st.session_state.thickness_result=(thickness,json.dumps(asdict(p),sort_keys=True),pt,pm)
+            thickness=target_thickness(p,pt,pm,support)
+            st.session_state.thickness_result=(thickness,thickness_signature,pt,pm)
         except ValueError as exc: st.error(str(exc))
     if 'thickness_result' in st.session_state:
         hh,signature,oldtarget,oldmode=st.session_state.thickness_result
-        if signature==json.dumps(asdict(p),sort_keys=True) and oldtarget==pt and oldmode==pm:
+        if signature==thickness_signature and oldtarget==pt and oldmode==pm:
             st.success(f'Épaisseur proposée : {hh*1000:.3f} mm')
             if st.button('Appliquer cette épaisseur'):
                 st.session_state.new_h=hh*1000; st.rerun()
 
 with st.sidebar.expander('Sauvegarder ou ouvrir une configuration'):
-    cfg=config_dict(p,strings,geo,ns)
+    cfg=config_dict(p,strings,geo,ns,support)
     cfg['harmonics']=[int(st.session_state.get('harmonic_'+str(i),1)) for i in range(n)]
+    cfg['scenario']=st.session_state.get('project_name','Configuration personnalisée')
     st.download_button('Télécharger la configuration',json.dumps(cfg,indent=2,ensure_ascii=False),'harmonie.json','application/json')
     upload=st.file_uploader('Ouvrir une configuration',type=['json'])
     if upload is not None and st.button('Charger la configuration'):

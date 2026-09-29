@@ -29,6 +29,16 @@ class Plate:
     damping: float = .012
 
 @dataclass(frozen=True)
+class Support:
+    """Traverse en bois collée derrière la jonction centrale des panneaux."""
+    enabled: bool = False
+    joint_u: float = .5
+    width: float = .0381
+    depth: float = .0381
+    rho: float = 500.
+    E: float = 10e9
+
+@dataclass(frozen=True)
 class String:
     active: bool = True
     L: float = 1.
@@ -54,7 +64,7 @@ class String:
 def defaults(n=5):
     return [String(L=float(L),u=(i+1)/(n+1)) for i,L in enumerate(np.linspace(.8,1.2,n))]
 
-def validate(p, strings):
+def validate(p, strings, support=None):
     vals=list(asdict(p).values())
     if any(not np.isfinite(v) for v in vals if isinstance(v,(int,float))):
         raise ValueError('Les paramètres doivent être finis.')
@@ -66,6 +76,12 @@ def validate(p, strings):
         raise ValueError('Chevalet hors plaque, masse ou raideur négative.')
     if not 3<=p.order<=10 or not .0001<=p.damping<=.3:
         raise ValueError('Ordre ou amortissement hors limites.')
+    if support is not None:
+        vals=list(asdict(support).values())
+        if any(not np.isfinite(v) for v in vals if isinstance(v,(int,float))):
+            raise ValueError('Les paramètres de la structure doivent être finis.')
+        if not 0<support.joint_u<1 or min(support.width,support.depth,support.rho,support.E)<=0:
+            raise ValueError('Position de jonction ou propriétés de la traverse invalides.')
     for s in strings:
         if any(not np.isfinite(v) for v in asdict(s).values()):
             raise ValueError('Une cellule de corde est vide ou non numérique.')
@@ -108,8 +124,8 @@ def rigidity(p):
     R=np.array([[c*c,s*s,c*s],[s*s,c*c,-c*s],[-2*c*s,2*c*s,c*c-s*s]])
     return R.T@D@R
 
-def plate_matrices(p):
-    validate(p,[])
+def plate_matrices(p,support=None):
+    validate(p,[],support)
     s,u,wt=quadrature(p)
     B=basis(p,s,u)
     curv=np.stack([basis(p,s,u,2,0),basis(p,s,u,0,2),2*basis(p,s,u,1,1)],axis=1)
@@ -118,6 +134,17 @@ def plate_matrices(p):
     x,w=leggauss(max(28,4*p.order))
     bridge=basis(p,np.full_like(x,p.bridge_s),(x+1)*p.W/2)
     M+=(bridge.T*w)@bridge*p.bridge_mass/2
+    if support is not None and support.enabled:
+        # Poutre d'Euler-Bernoulli verticale, solidaire de la plaque sur la jonction.
+        # Sa profondeur est mesurée suivant la normale à la table.
+        ss=(x+1)*p.H/2
+        uu=np.full_like(x,support.joint_u*p.W)
+        beam=basis(p,ss,uu)
+        beam_curv=basis(p,ss,uu,2,0)
+        area=support.width*support.depth
+        inertia=support.width*support.depth**3/12
+        M+=(beam.T*w)@beam*p.H/2*support.rho*area
+        K+=(beam_curv.T*w)@beam_curv*p.H/2*support.E*inertia
     if p.boundary=='Rotation élastique':
         for edge in (0.,p.H):
             edgeB=basis(p,np.full_like(x,edge),(x+1)*p.W/2,1,0)
@@ -221,9 +248,10 @@ def sequence_plan(strings,events,ns=8):
         raise ValueError('La séquence ne contient aucune note à jouer.')
     return plan
 
-def assemble(p,strings,ns=8):
-    validate(p,strings)
-    Kp,Mp=plate_matrices(p); fp,Vp=eigensystem(Kp,Mp)
+def assemble(p,strings,ns=8,support=None):
+    if support is None: support=Support()
+    validate(p,strings,support)
+    Kp,Mp=plate_matrices(p,support); fp,Vp=eigensystem(Kp,Mp)
     np_=len(Kp)
     masses=[s.rho*np.pi*s.d**2/4*s.L/2*np.ones(ns) for s in strings]
     M=block_diag(Mp,*[np.diag(m) for m in masses])
@@ -238,7 +266,7 @@ def assemble(p,strings,ns=8):
     for i,(s,m) in enumerate(zip(strings,masses)):
         sl=slice(np_+i*ns,np_+(i+1)*ns)
         zeta+=s.damping*np.sum(m[:,None]*V[sl]**2,axis=0)
-    return dict(p=p,strings=strings,ns=ns,np=np_,K=K,M=M,Kp=Kp,Mp=Mp,fp=fp,Vp=Vp,f=f,V=V,zeta=zeta,plate_fraction=plate_fraction)
+    return dict(p=p,support=support,strings=strings,ns=ns,np=np_,K=K,M=M,Kp=Kp,Mp=Mp,fp=fp,Vp=Vp,f=f,V=V,zeta=zeta,plate_fraction=plate_fraction)
 
 def force_vector(model,index=None):
     vec=np.zeros(len(model['K']),dtype=complex); ns=model['ns']; n=np.arange(1,ns+1)
@@ -263,9 +291,9 @@ def static_deflection(model):
     S,U=np.meshgrid(np.linspace(0,p.H,55),np.linspace(0,p.W,33),indexing='ij')
     return S,U,basis(p,S,U)@q,total
 
-def target_thickness(p,target,mode=0):
+def target_thickness(p,target,mode=0,support=None):
     def residual(h):
-        K,M=plate_matrices(replace(p,h=h)); return eigensystem(K,M)[0][mode]-target
+        K,M=plate_matrices(replace(p,h=h),support); return eigensystem(K,M)[0][mode]-target
     low,high=.0002,.030
     if residual(low)*residual(high)>0:
         raise ValueError('Cible hors de la plage 0,2–30 mm pour ce mode et ces paramètres.')
@@ -344,5 +372,7 @@ def synthesize_sequence(model,plan,listener=None,sr=44100):
     buf=io.BytesIO(); write(buf,sr,(np.clip(y,-1,1)*32767).astype(np.int16))
     return buf.getvalue(),y,peak
 
-def config_dict(p,strings,geometry,ns):
-    return dict(version=1,plate=asdict(p),strings=[asdict(s) for s in strings],geometry=geometry,string_modes=ns)
+def config_dict(p,strings,geometry,ns,support=None):
+    if support is None: support=Support()
+    return dict(version=1,plate=asdict(p),strings=[asdict(s) for s in strings],
+                geometry=geometry,string_modes=ns,support=asdict(support))

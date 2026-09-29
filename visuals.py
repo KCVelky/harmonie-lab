@@ -17,7 +17,7 @@ def box(fig,x0,x1,y0,y1,z0,z1,color,name,opacity=.6):
         k=[2,3,6,7,5,4,6,5,7,6,4,7],color=color,opacity=opacity,name=name,hoverinfo='name',showlegend=False))
 
 def scene(model,geo,vector=None,animation=False,amplitude=.012):
-    p=model['p']; strings=model['strings']; off=geo['plate_bottom']
+    p=model['p']; support=model.get('support'); strings=model['strings']; off=geo['plate_bottom']
     S,U=np.meshgrid(np.linspace(0,p.H,38),np.linspace(0,p.W,23),indexing='ij')
     if vector is None: vector=np.zeros(len(model['K']))
     wp=basis(p,S,U)@vector[:model['np']]
@@ -42,16 +42,28 @@ def scene(model,geo,vector=None,animation=False,amplitude=.012):
         fig.add_trace(go.Scatter3d(x=np.full_like(xi,(s.u-.5)*p.W),y=y+shapes[i],z=s0+xi*s.L,
             mode='lines',line=dict(color='#f0be62' if s.active else '#78899c',width=4),
             name=f'Corde {i+1}',showlegend=False))
+    if support is not None and support.enabled:
+        joint_x=(support.joint_u-.5)*p.W
+        fig.add_trace(line([[joint_x,.001,off],[joint_x,.001,off+p.H]],
+                           'Jonction collée des panneaux','#d9edf7',4))
     framew=geo['frame_width']; depth=geo['depth']; height=geo['height']
     for x in (-framew/2+.012,framew/2-.012):
         box(fig,x-.012,x+.012,-depth,0,0,height,'#80654b','Montant du châssis')
     for z in (.02,height-.02):
         box(fig,-framew/2,framew/2,-depth,0,z-.012,z+.012,'#80654b','Traverse structurelle')
-    # Cadre périphérique extérieur aux dimensions LIBRES.
-    for x in (-p.W/2-.0075,p.W/2+.0075):
-        box(fig,x-.0075,x+.0075,-.03,-.003,off-.015,off+p.H+.015,'#947453','Appui périphérique')
-    for z in (off-.0075,off+p.H+.0075):
-        box(fig,-p.W/2,p.W/2,-.03,-.003,z-.0075,z+.0075,'#947453','Appui périphérique')
+    # Cadre périphérique : la condition de bord porte son effet mécanique.
+    edge_w=support.width if support is not None and support.enabled else .015
+    edge_d=support.depth if support is not None and support.enabled else .027
+    for x in (-p.W/2-edge_w/2,p.W/2+edge_w/2):
+        box(fig,x-edge_w/2,x+edge_w/2,-edge_d-.003,-.003,
+            off-edge_w,off+p.H+edge_w,'#947453','Cadre périphérique')
+    for z in (off-edge_w/2,off+p.H+edge_w/2):
+        box(fig,-p.W/2,p.W/2,-edge_d-.003,-.003,
+            z-edge_w/2,z+edge_w/2,'#947453','Cadre périphérique')
+    if support is not None and support.enabled:
+        joint_x=(support.joint_u-.5)*p.W
+        box(fig,joint_x-support.width/2,joint_x+support.width/2,
+            -support.depth-.003,-.003,off,off+p.H,'#75583f','Traverse centrale modélisée',.85)
     box(fig,-p.W*.47,p.W*.47,0,.020,off+p.bridge_s-.004,off+p.bridge_s+.004,'#edc580','Chevalet : masse répartie, rigidité non modélisée')
     screws=[]
     for z in np.linspace(off,off+p.H,max(3,int(p.H/.08)+1)):
@@ -72,7 +84,10 @@ def scene(model,geo,vector=None,animation=False,amplitude=.012):
             y=.020-abs(t-s.beta)*s.L*np.tan(np.deg2rad(s.angle)/2)
             fig.add_trace(line([[x,y,s0+t*s.L],[x,-depth/2,s0+t*s.L]],'Ancrage structurel','#c8d1dc',5))
     fig.add_trace(line([[-framew/2,0,geo['technical_height']],[framew/2,0,geo['technical_height']]],'Limite zone technique','#3d7788',2))
+    elevation=geo.get('installation_height',0.)
+    title=f'Installation prévue à environ {elevation:g} m dans le musée' if elevation else None
     fig.update_layout(height=680,margin=dict(l=0,r=0,t=15,b=0),paper_bgcolor='#101923',
+        title=dict(text=title,x=.5,font=dict(size=15)) if title else None,
         font=dict(color='#c5d2e1'),scene=dict(bgcolor='#101923',
         xaxis_title='u : largeur (m)',yaxis_title='z : normale (m)',zaxis_title='s : verticale (m)',
         aspectmode='data',camera=dict(eye=dict(x=1.7,y=2.7,z=.7))),uirevision='geometry')

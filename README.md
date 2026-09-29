@@ -26,6 +26,7 @@ L'interface s'ouvre à **http://127.0.0.1:8501**. Garder le terminal ouvert. Ctr
 ## Prise en main
 
 1. Commencer avec la référence 610 × 305 × 2 mm, cinq cordes et deux aimants par corde.
+   Pour l'étude actuelle, le bouton « Charger le scénario musée · 5 × 8 pi » applique directement la géométrie préliminaire des deux panneaux.
 2. Régler le matériau, les dimensions et les appuis à gauche.
 3. Éditer le tableau des cordes. Défiler horizontalement pour voir tous les paramètres.
 4. Ouvrir « Modes et animations », sélectionner plaque ou ensemble, puis cliquer « Animer au ralenti ».
@@ -46,11 +47,13 @@ Le fichier `exemple_fur_elise.csv` peut être chargé directement depuis l'inter
 - Couplage mécanique réciproque, vibrations par sympathie.
 - Deux points d'excitation par corde, gains, phases et entrefers.
 - Géométrie 3D orientable, carte des nœuds, balayage fréquentiel.
+- Scénario musée 5 × 8 pi, jonction centrale visible et traverse en bois ajoutée au calcul.
+- Tableau des fréquences réellement imposées et de leur réponse relative sur la table.
 - Choix guidé des harmoniques, accordage inverse et recherche d'épaisseur.
 - Lecture de séquences musicales CSV et export du pilotage des électroaimants en CSV ou JSON.
 - Export JSON, CSV et WAV, sources et méthode intégrées.
 
-**Lire METHODE.md** pour les hypothèses. Le son est indicatif et les propriétés du panneau de 2 mm sont à identifier. Les valeurs exploratoires bouleau/érable ne sont pas présentées comme les propositions originales de Sandra.
+**Lire METHODE.md** pour les hypothèses. Le son est indicatif et les propriétés des panneaux minces sont à identifier. Le collage central est supposé parfait ; la profondeur de traverse du scénario musée est une hypothèse. Les valeurs exploratoires bouleau/érable ne sont pas présentées comme les propositions originales de Sandra.
 
 ## Repères vérifiés
 

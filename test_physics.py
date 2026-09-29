@@ -37,6 +37,17 @@ def test_elastic_edge_zero_and_positive():
     np.testing.assert_allclose(f,f0)
     assert np.all(f1>f)
 
+def test_central_support_adds_mass_and_stiffness():
+    p=Plate(H=2.4384,W=1.524,h=.003175,bridge_s=.48)
+    base=Support()
+    timber=Support(enabled=True,width=.0381,depth=.0381,rho=500.,E=10e9)
+    K0,M0=plate_matrices(p,base)
+    K1,M1=plate_matrices(p,timber)
+    assert np.trace(K1)>np.trace(K0)
+    assert np.trace(M1)>np.trace(M0)
+    model=assemble(p,defaults(2),support=timber)
+    assert model['support']==timber and np.all(np.isfinite(model['f']))
+
 def test_uncoupled_spectrum_and_residual():
     p=Plate(); ss=[replace(s,coupling=0) for s in defaults(2)]
     m=assemble(p,ss)
