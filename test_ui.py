@@ -71,3 +71,13 @@ def test_ui_museum_scenario():
     assert at.checkbox(key='support_enabled').value
     assert at.number_input(key='support_E').value==10
     assert at.number_input(key='g_installation_height').value==15000
+
+def test_ui_sandra_one_string_comparison():
+    at=app()
+    button(at,'Charger le cas de référence · 10 m, 12 Hz, un aimant').click().run()
+    assert not at.exception and len(at.session_state.rows)==1
+    assert abs(at.session_state.rows[0]['L (mm)']-10000)<.01
+    button(at,'Comparer 10 % et 22,5 %').click().run()
+    assert not at.exception and len(at.session_state.sandra_comparison)==12
+    button(at,'Comparer avec et sans traverse, puis bords encastrés').click().run()
+    assert not at.exception and len(at.session_state.sandra_sensitivity)==6

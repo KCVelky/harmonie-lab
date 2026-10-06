@@ -35,6 +35,12 @@ L'interface s'ouvre à **http://127.0.0.1:8501**. Garder le terminal ouvert. Ctr
 7. Dans « Réponse et son », créer l’écoute combinée de la table entière ou d’un point précis.
 8. Ajuster au besoin une tension de corde ou l’épaisseur de la table, puis sauvegarder la configuration depuis la barre latérale.
 
+### Étude Sandra : une corde longue
+
+Dans l'onglet « Étude Sandra · une corde », charger le cas de référence : une corde vibrante de 10 m, fil de 0,762 mm, fondamentale accordée à 12 Hz, un aimant à 10 % de la corde, deux panneaux de 5 × 8 pi avec traverse centrale supposée. Le bouton de comparaison calcule la réponse de la table avec le chevalet à 10 %, puis à 22,5 % de la hauteur depuis le haut. Les harmoniques 5 et 7 sont examinés vers 60 et 84 Hz, aux résolutions 10, 12 et 14. Une comparaison de sensibilité aux fixations est disponible dans un volet séparé.
+
+Le fichier T12 peut être déposé au format WAV ou dans l'archive ZIP fournie. Choisir le canal et l'hypothèse reliant la fréquence du courant à celle de la force avant d'analyser le spectre. Le fichier est transmis au serveur Streamlit et traité en mémoire pour la session ; il n'est pas inclus dans le dépôt. Le rapport pondéré par T12 est relatif et ne constitue ni une accélération étalonnée du bâtiment, ni un niveau sonore prédit dans la salle. Le point de contact corde–chevalet, le couplage, la force magnétique, la masse du chevalet, le matériau et les fixations restent des hypothèses modifiables.
+
 Les boutons de calcul de réponse et de son génèrent un résultat pour les réglages courants. Un changement de paramètre peut effacer l'affichage du résultat : recliquer pour le recalculer.
 
 Le fichier `exemple_fur_elise.csv` peut être chargé directement depuis l'interface. La mélodie est transposée une octave plus bas afin de rester proche des harmoniques disponibles avec les cordes par défaut.
@@ -48,6 +54,7 @@ Le fichier `exemple_fur_elise.csv` peut être chargé directement depuis l'inter
 - Deux points d'excitation par corde, gains, phases et entrefers.
 - Géométrie 3D orientable, carte des nœuds, balayage fréquentiel.
 - Scénario musée 5 × 8 pi, jonction centrale visible et traverse en bois ajoutée au calcul.
+- Comparaison à une corde des positions de chevalet 10 % et 22,5 %, contrôle de convergence et lecture du WAV T12.
 - Tableau des fréquences réellement imposées et de leur réponse relative sur la table.
 - Choix guidé des harmoniques, accordage inverse et recherche d'épaisseur.
 - Lecture de séquences musicales CSV et export du pilotage des électroaimants en CSV ou JSON.

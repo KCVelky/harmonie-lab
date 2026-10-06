@@ -74,7 +74,7 @@ def validate(p, strings, support=None):
         raise ValueError('Matériau instable : nu_su² × Eu/Es doit être inférieur à 1.')
     if not 0 < p.bridge_s < p.H or p.bridge_mass<0 or p.rotation<0:
         raise ValueError('Chevalet hors plaque, masse ou raideur négative.')
-    if not 3<=p.order<=10 or not .0001<=p.damping<=.3:
+    if not 3<=p.order<=14 or not .0001<=p.damping<=.3:
         raise ValueError('Ordre ou amortissement hors limites.')
     if support is not None:
         vals=list(asdict(support).values())

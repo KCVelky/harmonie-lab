@@ -14,6 +14,8 @@ from physics import (Plate,Support,String,defaults,assemble,basis,string_frequen
                      synthesize_sequence)
 from materials import MATERIALS
 from visuals import scene
+from etude_sandra import reference_string,compare_positions,summarize_comparison
+from analyse_t12 import audio_info,spectrum,band_power
 
 st.set_page_config(page_title='Harmonie Lab',page_icon='🎛️',layout='wide')
 st.markdown("""<style>
@@ -246,7 +248,8 @@ if support.enabled:
     st.caption(f'Deux panneaux avec collage central supposé parfait · traverse centrale {support.width*1000:.1f} × {support.depth*1000:.1f} mm · masse ajoutée {support_mass:.2f} kg · élévation prévue {geo.get("installation_height",0):g} m.')
 st.markdown('**Commande → réponse :** les électroaimants imposent les fréquences des notes ; la table renforce ou atténue chacune d’elles selon sa réponse mécanique.')
 
-tabs=st.tabs(['Prototype 3D','Modes et animations','Réponse et son','Accordage et cibles'])
+tabs=st.tabs(['Prototype 3D','Modes et animations','Réponse et son','Accordage et cibles',
+              'Étude Sandra · une corde'])
 with tabs[0]:
     st.plotly_chart(scene(model,geo),width='stretch',key='assembly')
     st.caption('Rotation : glisser · zoom : molette · axes en mètres. Volume des aimants, sections du cadre, vis et hauteur du chevalet sont schématiques. Le vide derrière la plaque est conservé.')
@@ -496,6 +499,185 @@ with tabs[3]:
             st.success(f'Épaisseur proposée : {hh*1000:.3f} mm')
             if st.button('Appliquer cette épaisseur'):
                 st.session_state.new_h=hh*1000; st.rerun()
+
+with tabs[4]:
+    st.subheader('Une corde longue · comparer deux positions du chevalet')
+    st.write('Le calcul garde la même corde et la même force. Seule la position du chevalet sur la table change : **10 % ou 22,5 % depuis le haut**.')
+    if st.button('Charger le cas de référence · 10 m, 12 Hz, un aimant'):
+        study_plate=Plate(H=2.4384,W=1.524,h=.003175,rho=650.,Es=10e9,Eu=10e9,
+                          G=10e9/2.6,nu=.30,boundary='Appuis simples',bridge_s=2.19456,
+                          bridge_mass=.010,damping=.012,order=6)
+        study_geo=dict(height=2.4384,frame_width=1.524,depth=.305,plate_bottom=0.,
+                       technical_height=.610,installation_height=15.)
+        study_support=Support(enabled=True,width=.0381,depth=.0381,rho=500.,E=10e9)
+        data=config_dict(study_plate,[reference_string()],study_geo,12,study_support)
+        data['scenario']='Sandra · une corde de 10 m · hypothèses préliminaires'
+        data['harmonics']=[5]
+        st.session_state.pending=data
+        st.rerun()
+    st.caption('Cas de départ : fil de 0,762 mm, tension calculée pour 12 Hz, aimant unique à 10 % de la corde. Contact corde–chevalet à 5 % de L, couplage 500 N/m, force harmonique 0,01 N, masse de chevalet 10 g et propriétés du bois : hypothèses non mesurées.')
+    if len(strings)!=1:
+        st.warning('Chargez le cas de référence ci-dessus, ou réglez le nombre de cordes à 1 dans les paramètres avancés.')
+    else:
+        wire=strings[0]
+        targets=string_frequencies(wire,7)
+        st.markdown(f'**Corde actuelle :** L = {wire.L:.2f} m · d = {wire.d*1000:.3f} mm · '
+                    f'T = {wire.T:.1f} N · f₁ = {targets[0]:.2f} Hz · '
+                    f'f₅ = {targets[4]:.2f} Hz · f₇ = {targets[6]:.2f} Hz.')
+        st.caption(f'Le point de contact sur la corde reste fixé à {100*wire.beta:.1f} % de L et l’aimant 1 à {100*wire.p1:.1f} % de L dans les deux cas. '
+                   f'La comparaison utilise la plaque {p.H:.3f} × {p.W:.3f} m, avec les propriétés et fixations actuellement saisies.')
+    comparison_signature=json.dumps(dict(plate=asdict(p),support=asdict(support),
+                                         strings=[asdict(s) for s in strings]),sort_keys=True)
+    if st.button('Comparer 10 % et 22,5 %',type='primary',disabled=len(strings)!=1):
+        try:
+            with st.spinner('Calcul aux résolutions 10, 12 et 14…'):
+                st.session_state.sandra_comparison=compare_positions(p,strings[0],support)
+                st.session_state.sandra_comparison_signature=comparison_signature
+        except (ValueError,np.linalg.LinAlgError) as exc:
+            st.error('Comparaison impossible : '+str(exc))
+    study_rows=(st.session_state.get('sandra_comparison')
+                if st.session_state.get('sandra_comparison_signature')==comparison_signature else None)
+    study_summary=summarize_comparison(study_rows) if study_rows else None
+    if study_summary:
+        display=pd.DataFrame([{
+            'Harmonique':r['harmonic'],'Force (Hz)':r['force_hz'],
+            'Vibration globale · 10 % (m/s²)':r['rms_10'],
+            'Vibration globale · 22,5 % (m/s²)':r['rms_22_5'],
+            'Rapport 10 % / 22,5 %':r['ratio_10_over_22_5'],
+            'Variation max. de résolution · 10 %':r['convergence_10'],
+            'Variation max. de résolution · 22,5 %':r['convergence_22_5'],
+            'Lecture':r['verdict']
+        } for r in study_summary])
+        st.dataframe(display,hide_index=True,width='stretch',column_config={
+            'Force (Hz)':st.column_config.NumberColumn(format='%.2f'),
+            'Vibration globale · 10 % (m/s²)':st.column_config.NumberColumn(format='%.4g'),
+            'Vibration globale · 22,5 % (m/s²)':st.column_config.NumberColumn(format='%.4g'),
+            'Rapport 10 % / 22,5 %':st.column_config.NumberColumn(format='%.3f'),
+            'Variation max. de résolution · 10 %':st.column_config.NumberColumn(format='%.1%'),
+            'Variation max. de résolution · 22,5 %':st.column_config.NumberColumn(format='%.1%')})
+        bars=go.Figure()
+        for label,key in [('10 %','rms_10'),('22,5 %','rms_22_5')]:
+            bars.add_bar(name=label,x=[f'{r["force_hz"]:.1f} Hz' for r in study_summary],
+                         y=[r[key] for r in study_summary])
+        bars.update_layout(barmode='group',height=330,
+                           yaxis_title='Accélération spatiale quadratique (m/s²)',
+                           legend_title='Chevalet depuis le haut')
+        st.plotly_chart(bars,width='stretch')
+        if any(not r['stable'] for r in study_summary):
+            st.warning('Au moins une réponse varie encore de plus de 10 % entre deux résolutions : résultat non concluant pour cette fréquence.')
+        with st.expander('Détails : convergence et mouvement moyen cohérent'):
+            st.dataframe(pd.DataFrame(study_rows),hide_index=True,width='stretch')
+            coherent=pd.DataFrame([{
+                'Force (Hz)':r['force_hz'],
+                'Moyenne cohérente · 10 % (m/s²)':r['coherent_10'],
+                'Moyenne cohérente · 22,5 % (m/s²)':r['coherent_22_5'],
+                'Variation max. · 10 %':r['coherent_convergence_10'],
+                'Variation max. · 22,5 %':r['coherent_convergence_22_5']
+            } for r in study_summary])
+            st.dataframe(coherent,hide_index=True,width='stretch')
+            st.caption('La vibration globale est une moyenne quadratique spatiale : elle ne s’annule pas lorsque deux zones vibrent en sens opposés. La moyenne cohérente peut au contraire se compenser ; ni l’une ni l’autre ne prédit à elle seule le son dans la salle.')
+        st.download_button('Télécharger la comparaison CSV',
+                           pd.DataFrame(study_rows).to_csv(index=False).encode('utf-8-sig'),
+                           'comparaison_chevalet_sandra.csv','text/csv')
+        st.info('Les chiffres supposent la même force harmonique aux deux positions. « Plus élevé » décrit seulement le mouvement mécanique calculé, pas une différence de volume sonore au musée.')
+        with st.expander('Vérifier l’effet des fixations supposées'):
+            st.write('Une traverse ou un bord plus rigide peut déplacer les résonances et inverser le classement. Ces variantes servent à mesurer cette sensibilité, pas à décrire trois constructions confirmées.')
+            if st.button('Comparer avec et sans traverse, puis bords encastrés'):
+                try:
+                    with st.spinner('Calcul des variantes de fixation…'):
+                        cases=[('Réglage actuel',p,support),
+                               ('Sans traverse',p,replace(support,enabled=False)),
+                               ('Bords encastrés',replace(p,boundary='Encastrement'),support)]
+                        sensitivity=[]
+                        for name,case_plate,case_support in cases:
+                            variant=summarize_comparison(compare_positions(
+                                case_plate,strings[0],case_support,orders=(12,14)))
+                            for item in variant:
+                                sensitivity.append({'Hypothèse':name,
+                                    'Force (Hz)':item['force_hz'],
+                                    'Rapport vibration 10 % / 22,5 %':item['ratio_10_over_22_5'],
+                                    'Convergence':('suffisante' if item['stable'] else 'insuffisante')})
+                        st.session_state.sandra_sensitivity=sensitivity
+                        st.session_state.sandra_sensitivity_signature=comparison_signature
+                except (ValueError,np.linalg.LinAlgError) as exc:
+                    st.error('Test de sensibilité impossible : '+str(exc))
+            if st.session_state.get('sandra_sensitivity_signature')==comparison_signature:
+                st.dataframe(pd.DataFrame(st.session_state.sandra_sensitivity),hide_index=True,
+                             width='stretch',column_config={
+                    'Rapport vibration 10 % / 22,5 %':st.column_config.NumberColumn(format='%.3f')})
+                st.caption('Rapport > 1 : plus de vibration globale à 10 % ; rapport < 1 : plus à 22,5 %. Une convergence insuffisante interdit un verdict pour cette ligne.')
+
+    st.divider()
+    st.subheader('Confronter ces cibles à l’enregistrement T12')
+    uploaded_t12=st.file_uploader('Déposer le WAV T12 ou son archive ZIP',type=['wav','zip'],key='sandra_t12_upload')
+    st.caption('Le fichier est transmis au serveur Streamlit et analysé en mémoire pour cette session ; il n’est pas ajouté au dépôt du projet. Le WAV fourni par Sandra est exploratoire et non étalonné récemment.')
+    if uploaded_t12 is not None:
+        try:
+            t12_data=uploaded_t12.getvalue()
+            t12_info=audio_info(t12_data,uploaded_t12.name)
+            st.write(f'**{t12_info["name"]}** · {t12_info["duration"]:.1f} s · '
+                     f'{t12_info["sample_rate"]} Hz · {t12_info["channels"]} canal(aux)')
+            chosen_channel=st.selectbox('Canal à analyser',range(t12_info['channels']),
+                                        format_func=lambda i:f'Canal {i+1}',key='sandra_t12_channel')
+            force_mapping=st.selectbox('Relation supposée entre courant et force',
+                ['Force à la fréquence du courant · biais/linéarisation à vérifier',
+                 'Force à deux fois la fréquence du courant · sans biais idéalisé'],
+                key='sandra_t12_force_mapping')
+            if st.button('Analyser les fréquences de T12'):
+                with st.spinner('Lecture et analyse du signal…'):
+                    st.session_state.sandra_t12=spectrum(t12_data,uploaded_t12.name,chosen_channel)
+                    st.session_state.sandra_t12_signature=(uploaded_t12.name,len(t12_data),chosen_channel)
+            current_audio=st.session_state.get('sandra_t12')
+            if (current_audio is not None and
+                st.session_state.get('sandra_t12_signature')==(uploaded_t12.name,len(t12_data),chosen_channel)):
+                frequencies=current_audio['frequency_hz']; power=current_audio['power']
+                selected=(frequencies>=5)&(frequencies<=150)
+                reference_power=max(float(np.max(power[selected])),1e-30)
+                spectrum_db=10*np.log10(np.maximum(power/reference_power,1e-12))
+                plot=go.Figure(go.Scatter(x=frequencies[selected],y=spectrum_db[selected],
+                                          mode='lines',name='T12'))
+                plot.update_layout(height=350,xaxis_title='Fréquence du signal électrique (Hz)',
+                                   yaxis_title='Densité spectrale relative (dB)')
+                st.plotly_chart(plot,width='stretch')
+                st.caption(f'{current_audio["analyzed_seconds"]:.1f} s analysées sur le canal {chosen_channel+1}. '
+                           'Ces dB sont relatifs au fichier numérique : ils ne sont pas une accélération étalonnée du bâtiment.')
+                if len(strings)==1:
+                    factor=2 if force_mapping.startswith('Force à deux') else 1
+                    target_rows=[]
+                    for rank in (5,7):
+                        mechanical=float(string_frequencies(strings[0],rank)[-1])
+                        electrical=mechanical/factor
+                        density=band_power(current_audio,electrical)
+                        target_rows.append(dict(Harmonique=rank,
+                            **{'Force recherchée (Hz)':mechanical,
+                               'Fréquence à chercher dans T12 (Hz)':electrical,
+                               'T12 relatif (dB)':10*np.log10(max(density/reference_power,1e-12)),
+                               'poids':density}))
+                    t12_targets=pd.DataFrame(target_rows)
+                    st.dataframe(t12_targets.drop(columns='poids'),hide_index=True,width='stretch')
+                    st.caption('Le scénario « force à deux fois la fréquence du courant » est une approximation d’un aimant attractif sans biais. Le comportement de la bobine réelle doit être mesuré.')
+                    if study_summary:
+                        weights={int(r['Harmonique']):float(r['poids']) for r in target_rows}
+                        total=sum(weights.values())
+                        if total>0:
+                            combined={label:np.sqrt(sum(weights[r['harmonic']]*r[key]**2
+                                for r in study_summary)/total)
+                                for label,key in [('10 %','rms_10'),('22,5 %','rms_22_5')]}
+                            combined_ratio=combined['10 %']/max(combined['22,5 %'],1e-30)
+                            st.metric('Indice mécanique pondéré par T12 · 10 % / 22,5 %',
+                                      f'{combined_ratio:.2f} ×')
+                            if all(r['stable'] for r in study_summary):
+                                if combined_ratio>=1.15:
+                                    st.write('Selon cet indice mécanique, **10 %** donne la réponse globale la plus élevée pour ce fichier et ces hypothèses.')
+                                elif combined_ratio<=1/1.15:
+                                    st.write('Selon cet indice mécanique, **22,5 %** donne la réponse globale la plus élevée pour ce fichier et ces hypothèses.')
+                                else:
+                                    st.write('Selon cet indice mécanique, les deux positions donnent des réponses globales proches.')
+                            else:
+                                st.warning('La convergence d’au moins une fréquence est insuffisante : ne pas interpréter ce rapport comme un verdict.')
+                            st.caption('Indice exploratoire : chaque fréquence reçoit un poids selon son énergie dans T12, avec le même gain inconnu pour les deux positions. Un pic électrique ou de chantier peut fausser ce poids. Ce rapport ne prédit pas le niveau sonore réel.')
+        except (ValueError,TypeError,KeyError) as exc:
+            st.error('Analyse T12 impossible : '+str(exc))
 
 with st.sidebar.expander('Sauvegarder ou ouvrir une configuration'):
     cfg=config_dict(p,strings,geo,ns,support)
