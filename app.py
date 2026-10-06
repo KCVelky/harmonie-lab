@@ -32,6 +32,7 @@ h1,h2,h3 {letter-spacing:-.025em}
 </style>""",unsafe_allow_html=True)
 st.title('Harmonie Lab')
 st.caption('Accordage, excitation électromagnétique et écoute de la table d’harmonie')
+st.page_link('pages/1_Audibilite.py', label='Ouvrir la page Audibilité · étude pour Sandra', icon='🔊')
 
 GEO_DEFAULT=dict(height=1.524,frame_width=.305,depth=.305,plate_bottom=.420,
                  technical_height=.610,installation_height=0.)

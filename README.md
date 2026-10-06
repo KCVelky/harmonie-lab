@@ -37,9 +37,15 @@ L'interface s'ouvre à **http://127.0.0.1:8501**. Garder le terminal ouvert. Ctr
 
 ### Étude Sandra : une corde longue
 
-Dans l'onglet « Étude Sandra · une corde », charger le cas de référence : une corde vibrante de 10 m, fil de 0,762 mm, fondamentale accordée à 12 Hz, un aimant à 10 % de la corde, deux panneaux de 5 × 8 pi avec traverse centrale supposée. Le bouton de comparaison calcule la réponse de la table avec le chevalet à 10 %, puis à 22,5 % de la hauteur depuis le haut. Les harmoniques 5 et 7 sont examinés vers 60 et 84 Hz, aux résolutions 10, 12 et 14. Une comparaison de sensibilité aux fixations est disponible dans un volet séparé.
+Dans l'onglet « Étude Sandra · une corde », charger le cas de référence : une corde vibrante de 10 m, fil de 0,762 mm, fondamentale accordée à 12 Hz, un aimant à 10 % de la corde, deux panneaux de 2,5 × 8 pi formant une table de 5 × 8 pi avec traverse centrale supposée. Le bouton de comparaison calcule la réponse de la table avec le chevalet à 10 %, puis à 22,5 % de la hauteur depuis le haut. Les harmoniques 5 et 7 sont examinés vers 60 et 84 Hz, aux résolutions 10, 12 et 14. Une comparaison de sensibilité aux fixations est disponible dans un volet séparé.
 
 Le fichier T12 peut être déposé au format WAV ou dans l'archive ZIP fournie. Choisir le canal et l'hypothèse reliant la fréquence du courant à celle de la force avant d'analyser le spectre. Le fichier est transmis au serveur Streamlit et traité en mémoire pour la session ; il n'est pas inclus dans le dépôt. Le rapport pondéré par T12 est relatif et ne constitue ni une accélération étalonnée du bâtiment, ni un niveau sonore prédit dans la salle. Le point de contact corde–chevalet, le couplage, la force magnétique, la masse du chevalet, le matériau et les fixations restent des hypothèses modifiables.
+
+### Page « Audibilité · étude pour Sandra »
+
+La page distincte accessible par la navigation Streamlit déroule quatre étapes : projection de l'aimant et du contact sur les modes isolés, comparaison mécanique du chevalet à 10 % et 22,5 %, bandes de T12 avec gains de filtrage proposés, puis robustesse du classement aux hypothèses de fixation et d'amortissement. L'indice pondéré par T12 n'est affiché que si le calcul converge et si l'on suppose une force linéarisée à la fréquence de la commande avec conversion identique aux bandes retenues. Dans le cas quadratique idéalisé produisant une force à 2f, le logiciel n'en déduit pas de réponse pondérée à partir de la seule densité spectrale de T12.
+
+Une section facultative accepte des mesures acoustiques **étalonnées** au même microphone, dans la même bande, aimant en marche et à l'arrêt, ainsi que la force harmonique crête du test. Elle calcule par soustraction énergétique le niveau attribuable à la source, puis une extrapolation linéaire pour une autre force. Si les mesures sont absentes ou si leur différence est trop faible, elle n'annonce aucun niveau sonore ni pourcentage d'audibilité. L'audio généré par l'application reste normalisé et ne constitue pas une mesure du volume réel.
 
 Les boutons de calcul de réponse et de son génèrent un résultat pour les réglages courants. Un changement de paramètre peut effacer l'affichage du résultat : recliquer pour le recalculer.
 

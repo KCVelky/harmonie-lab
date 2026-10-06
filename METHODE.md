@@ -64,6 +64,14 @@ Le signal est normalisé à chaque génération, avec fondus de 25 ms, et export
 
 Le rayonnement acoustique de la plaque, les annulations entre lobes, l'effet dipolaire de l'arrière ouvert, la cavité, le local et le haut-parleur d'écoute ne sont pas calculés. Aucun niveau en dB SPL n'est revendiqué. Le timbre réel pourrait être très différent.
 
+### Page d'audibilité et mesure acoustique
+
+La page dédiée compare la vibration spatiale quadratique de la plaque pour les mêmes force, corde et table, en déplaçant seulement le chevalet entre 10 % et 22,5 % depuis le haut. Les projections |sin(nπp)| de l'aimant et du contact ne concernent que les modes d'une corde isolée. La comparaison mécanique vérifie sa convergence entre trois résolutions ; les variantes de structure la vérifient entre deux résolutions. Une variante non convergée n'autorise aucun verdict.
+
+Dans une bande de ±1 Hz centrée sur la fréquence de commande, l'énergie numérique de T12 est estimée par la somme des densités spectrales de puissance multipliée par le pas fréquentiel. Un gain de filtre G en dB multiplie cette énergie par 10^(G/10). L'indice pondéré compare la racine de la moyenne des carrés des accélérations de plaque, pondérée par ces énergies. Son interprétation suppose une conversion commande-force identique aux bandes, un filtrage approximativement plat dans chaque bande et un transfert linéarisé à la même fréquence. Le facteur de force inconnu commun s'annule dans le **rapport** entre les deux positions, mais pas dans un niveau absolu. Pour une force quadratique à 2f, le spectre de force dépend des produits et mélanges du signal temporel ; la seule énergie de T12 à f/2 est insuffisante à cette fin.
+
+La section acoustique ne s'active qu'avec des niveaux dB SPL RMS mesurés au même microphone dans une même bande fréquentielle. Sous l'hypothèse de fond comparable et de contributions énergétiques indépendantes, le niveau de la source est Ls=10 log10(10^(Lon/10)−10^(Loff/10)). Une différence marche/arrêt inférieure à 3 dB est traitée comme non concluante, seuil pratique de cette interface et non loi d'audibilité. Pour un même montage et une réponse linéaire, une force de référence Fr et une force prévue Fp donnent Lp=Ls+20 log10(Fp/Fr). Le contraste Lp−Loff est un indicateur local et fréquentiel ; la page ne le convertit ni en perception garantie ni en probabilité. Si le niveau change fortement avec la force, l'hypothèse de linéarité doit être testée sur l'électroaimant réel.
+
 ### Géométrie et hypothèses de départ
 
 Références reprises : châssis 1524 × 305 × 305 mm ; plaque libre 610 × 305 × **2 mm** ; cinq cordes de diamètre 0,762 mm, longueurs réparties de 800 à 1200 mm ; deux aimants par corde ; chevalet à 122 mm du bord inférieur ; zone technique de 610 mm.
