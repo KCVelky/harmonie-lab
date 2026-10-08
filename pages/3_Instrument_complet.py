@@ -2,6 +2,7 @@
 
 import json
 import hashlib
+from importlib import reload
 
 import numpy as np
 import pandas as pd
@@ -10,10 +11,19 @@ import streamlit as st
 
 from analyse_t12 import audio_info, spectrum
 from audibilite import band_energy
-from instrument_complet import (collective_convergence, combined_sound,
-                                evaluate_instrument, evaluate_instrument_spectral,
-                                example_strings, make_strings, preview_audio,
-                                summarize_instrument)
+import instrument_complet as instrument_model
+
+if not hasattr(instrument_model, 'evaluate_instrument_spectral'):
+    instrument_model = reload(instrument_model)
+
+collective_convergence = instrument_model.collective_convergence
+combined_sound = instrument_model.combined_sound
+evaluate_instrument = instrument_model.evaluate_instrument
+evaluate_instrument_spectral = instrument_model.evaluate_instrument_spectral
+example_strings = instrument_model.example_strings
+make_strings = instrument_model.make_strings
+preview_audio = instrument_model.preview_audio
+summarize_instrument = instrument_model.summarize_instrument
 
 
 st.set_page_config(page_title='Instrument complet · Harmonie Lab',
