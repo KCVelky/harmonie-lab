@@ -10,7 +10,8 @@ import streamlit as st
 
 from analyse_t12 import audio_info, spectrum
 from audibilite import band_energy
-from instrument_complet import (combined_sound, evaluate_instrument,
+from instrument_complet import (collective_convergence, combined_sound,
+                                evaluate_instrument, evaluate_instrument_spectral,
                                 example_strings, make_strings, preview_audio,
                                 summarize_instrument)
 
@@ -33,11 +34,23 @@ with st.sidebar:
     boundary = st.selectbox('Fixation idéalisée du bord',
                             ['Appuis simples', 'Encastrement'])
     support = st.checkbox('Traverse centrale solidaire', value=True)
-    damping = st.number_input('Amortissement modal de la table · hypothèse ζ',
+    damping = st.number_input('Amortissement de la table · hypothèse ζ',
                               .001, .100, .012, .001, format='%.3f')
-    resolution = st.selectbox('Contrôle de résolution mécanique',
-                              ['Ordres 10 et 12', 'Ordres 12 et 14'])
-    orders = (10, 12) if resolution.startswith('Ordres 10') else (12, 14)
+    if boundary == 'Appuis simples':
+        resolution = st.selectbox('Contrôle de résolution mécanique',
+                                  ['Haute résolution · ordres 34, 38 et 42',
+                                   'Vérification approfondie · 38, 42, 46 et 50'])
+        orders = ((34, 38, 42) if resolution.startswith('Haute')
+                  else (38, 42, 46, 50))
+        solver = 'spectral'
+    else:
+        resolution = st.selectbox('Contrôle de résolution mécanique',
+                                  ['Exploratoire · ordres 10 et 12',
+                                   'Exploratoire · ordres 12 et 14'])
+        orders = ((10, 12) if resolution.startswith('Exploratoire · ordres 10')
+                  else (12, 14))
+        solver = 'modal'
+        st.caption('Pour les bords encastrés, le calcul reste exploratoire : le solveur haute résolution actuel est réservé aux appuis simples.')
     st.divider()
     st.header('Contact corde–table')
     contact = st.number_input('Contact sur chaque corde (% de sa longueur)',
@@ -129,12 +142,14 @@ parameters = dict(contact_fraction=contact, coupling_n_m=coupling,
                   receiver_xyz_m=(front_distance, lateral_offset, ear_height),
                   orders=orders)
 scenario_key = (tuple(tuple(row[field] for field in original.columns) for row in records),
-                tuple(parameters.items()))
+                tuple(parameters.items()), solver)
 
 
 @st.cache_data(show_spinner=False, max_entries=4)
-def calculate(key, rows, settings):
-    return evaluate_instrument([dict(row) for row in rows], **dict(settings))
+def calculate(key, rows, settings, method):
+    engine = (evaluate_instrument_spectral if method == 'spectral'
+              else evaluate_instrument)
+    return engine([dict(row) for row in rows], **dict(settings))
 
 
 with tab_results:
@@ -146,7 +161,7 @@ with tab_results:
             with st.spinner('Assemblage des cordes, des deux positions et des deux résolutions…'):
                 results, information = calculate(
                     scenario_key, tuple(tuple(row.items()) for row in records),
-                    tuple(parameters.items()))
+                    tuple(parameters.items()), solver)
             st.session_state.instrument_result = (results, information)
             st.session_state.instrument_result_key = scenario_key
         except ValueError as exc:
@@ -160,9 +175,21 @@ with tab_results:
         summary = summarize_instrument(results, information)
         unstable = [row['number'] for row in summary if row['active'] and not row['stable']]
         if unstable:
-            st.warning(f'Convergence supérieure à 10 % entre les ordres {orders[0]} et {orders[1]} pour {len(unstable)} corde(s). Le classement et les dB collectifs ne sont pas fiables dans ce scénario ; affinez les hypothèses ou la résolution avant de conclure.')
+            st.warning(f'Variation supérieure à 10 % sur les ordres étudiés pour {len(unstable)} corde(s). Leur classement individuel est incertain ; le niveau de toutes les cordes est contrôlé séparément ci-dessous.')
         else:
-            st.success('Les transferts des cordes actives varient de moins de 10 % entre les deux ordres mécaniques testés. Cela ne valide ni les propriétés matérielles, ni le rayonnement réel.')
+            st.success('Les transferts de toutes les cordes actives varient de moins de 10 % entre les ordres mécaniques testés. Cela ne valide ni les propriétés matérielles, ni le rayonnement réel.')
+        collective = collective_convergence(results, information)
+        convergence_columns = st.columns(2)
+        for column, position, label in zip(convergence_columns, (.10, .225),
+                                           ('10 % du haut', '22,5 % du haut')):
+            variation = collective[position]['relative_span']
+            column.metric(f'Variation du son collectif · {label}',
+                          f'{100 * variation:.1f} %')
+        if all(item['relative_span'] <= .10 for item in collective.values()):
+            st.success('Le niveau collectif non synchronisé varie de moins de 10 % entre les résolutions affichées. Les dB conditionnels peuvent être examinés, sous les hypothèses physiques indiquées.')
+        else:
+            st.warning('Le niveau collectif varie encore de plus de 10 % : les dB concernés resteront masqués. Essayez la vérification approfondie ou revoyez le scénario.')
+        st.caption('La convergence individuelle porte sur chaque raie ; la convergence collective porte sur la somme énergétique de toutes les raies. Une faible raie instable peut donc coexister avec un niveau collectif stable. Aucune des deux ne mesure l’incertitude sur les aimants, le bois ou la salle.')
         readable = [row for row in summary if row['active'] and row['stable']]
         favors_10 = sum(row['pressure_0.1'] > 1.2 * row['pressure_0.225']
                         for row in readable)
@@ -228,14 +255,13 @@ with tab_results:
                                   horizontal=True)
             background = st.number_input('Bruit de fond au même point et dans la même plage de fréquences (dB SPL RMS)',
                                          0., 110., 40., 1.)
-            if unstable:
-                st.error('Le niveau collectif est masqué : la convergence n’est pas suffisante pour toutes les cordes actives.')
-            else:
-                aggregate = []
+            aggregate = []
+            for phase_locked in (False, True):
+                stability = collective_convergence(results, information,
+                                                   phase_locked=phase_locked)
                 for position in (.10, .225):
-                    for phase_locked in (False, True):
-                        sound = combined_sound(summary, position,
-                                               phase_locked=phase_locked)
+                    if stability[position]['relative_span'] <= .10:
+                        sound = combined_sound(summary, position, phase_locked=phase_locked)
                         aggregate.append({
                             'Chevalet': f'{100 * position:g} %',
                             'Hypothèse de phase': ('Sources non synchronisées'
@@ -243,11 +269,14 @@ with tab_results:
                                                    'Même phase de commande aux fréquences identiques'),
                             'Source au point d’écoute (dB SPL)': sound['level_db_spl'],
                             'Écart avec le fond saisi (dB)': sound['level_db_spl'] - background,
+                            'Variation numérique': stability[position]['relative_span'],
                         })
+            if aggregate:
                 st.dataframe(pd.DataFrame(aggregate), hide_index=True,
                              width='stretch', column_config={
                     'Source au point d’écoute (dB SPL)': st.column_config.NumberColumn(format='%.1f'),
                     'Écart avec le fond saisi (dB)': st.column_config.NumberColumn(format='%+.1f'),
+                    'Variation numérique': st.column_config.NumberColumn(format='%.1%'),
                 })
                 st.caption('Les contributions à des fréquences différentes sont additionnées en énergie moyenne. À fréquence strictement égale, la somme est complexe si les commandes partagent une phase connue ; le cas non synchronisé additionne les énergies. Ce sont des scénarios, pas des bornes universelles.')
                 if provenance == 'Hypothèse de travail':
@@ -264,6 +293,8 @@ with tab_results:
                     'pressure_rms_pa': 'Pression RMS (Pa)',
                     'level_db_spl': 'Niveau de la raie (dB SPL)',
                 }), hide_index=True, width='stretch')
+            else:
+                st.error('Aucun niveau collectif assez stable numériquement pour ce scénario.')
 
         export = comparison.copy()
         st.download_button('Exporter la comparaison (CSV)',
@@ -319,13 +350,13 @@ with tab_method:
     st.markdown(r'''
 1. **Corde isolée.** La tension est calculée à partir de sa longueur, de sa fondamentale cible, du diamètre de 0,762 mm et d’une faible correction de flexion. Les harmoniques proviennent ensuite du modèle de fil tendu avec cette correction. Les 25 tensions, y compris celles des cordes non commandées, sont sommées pour l’enveloppe statique.
 2. **Aimant et contact.** La force harmonique crête est une entrée, pas une sortie du modèle électromagnétique. La projection de l’aimant sur le mode (n) vaut \(\sin(n\pi p)\), et celle du contact corde–chevalet \(\sin(n\pi\beta)\). La raideur de contact est linéarisée. La phase et l’amplitude réelles peuvent dépendre de la commande, de l’entrefer, du courant et de la saturation.
-3. **Structure.** Toutes les cordes sont couplées à une même table de Kirchhoff–Love. La table est résolue par Rayleigh–Ritz, pas par un maillage éléments finis 2D. Les deux panneaux sont supposés parfaitement continus à la jonction. La traverse est solidaire si activée. Le chevalet est représenté par sa masse répartie, sans flexion propre.
+3. **Structure.** Toutes les cordes sont couplées à une même table de Kirchhoff–Love. Avec les appuis simples, une base sinusoïdale haute résolution donne exactement les matrices de masse et de raideur de la plaque idéale ; la traverse, la masse du chevalet et les contacts sont ajoutés par leurs contributions énergétiques. La réponse harmonique est résolue directement, avec un facteur de perte structurel \(\eta=2\zeta\) pour la plaque et les cordes. Avec les bords encastrés, la page conserve l’ancien calcul modal Rayleigh–Ritz à plus basse résolution : les deux choix de bords ne diffèrent donc pas uniquement par la fixation. Il ne s’agit pas d’un maillage éléments finis 2D. Les deux panneaux sont supposés parfaitement continus à la jonction. Le chevalet est représenté par sa masse répartie, sans flexion propre.
 4. **Rayonnement.** La pression directe au point d’écoute provient de l’intégrale de Rayleigh sur une face dans un écran rigide infini :
 
    \[p(\mathbf r)=-\frac{\rho_0\omega^2}{2\pi}\int_S w(\mathbf x)\frac{e^{-ikR}}{R}\,\mathrm dS.\]
 
    La pression complexe est convertie en RMS, puis en dB SPL par rapport à 20 µPa. Les contributions à des fréquences différentes sont additionnées en énergie. Le dos, la boîte réelle, le couplage acoustique retour, les réflexions et la présence du public ne sont pas calculés.
-5. **Convergence.** Les deux ordres mécaniques choisis dans la barre latérale sont comparés corde par corde. Un écart inférieur à 10 % teste la stabilité de cette résolution, pas l’exactitude des paramètres. Si l’écart est trop grand, les dB collectifs sont masqués.
+5. **Convergence.** Les ordres choisis dans la barre latérale sont comparés de deux façons : pression par corde et pression RMS de l’ensemble. La variation est \((\max p-\min p)/\max p\) sur tous les ordres. Les dB collectifs ne s’affichent que si le total correspondant varie de moins de 10 %. Cette stabilité numérique ne valide pas les paramètres physiques ; certaines raies peuvent rester incertaines même lorsque le total est stable.
 ''')
     st.subheader('Ce qu’il faut encore pour une prévision crédible')
     st.dataframe(pd.DataFrame([

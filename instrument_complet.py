@@ -10,6 +10,7 @@ from numpy.polynomial.legendre import leggauss
 from audibilite import museum_case
 from physics import assemble, basis, response, string_frequencies, tension_for
 from rayonnement import acoustic_level, pressure_from_surface
+from rayonnement_spectral import build_spectral_system, spectral_pressure
 
 
 def example_strings(count=25):
@@ -115,11 +116,52 @@ def evaluate_instrument(records, *, contact_fraction=.05, coupling_n_m=500.,
     return results, string_info
 
 
+def evaluate_instrument_spectral(records, *, contact_fraction=.05,
+                                 coupling_n_m=500., damping=.012,
+                                 bridge_mass_kg=5., modulus_gpa=10.,
+                                 density_kg_m3=650., boundary='Appuis simples',
+                                 support_enabled=True, center_height_m=15.,
+                                 receiver_xyz_m=(5., 0., 1.6),
+                                 orders=(20, 24), positions=(.10, .225),
+                                 integration_points=28):
+    """Réponse directe à haute résolution, avec amortissement structurel."""
+    wires, string_info = make_strings(records, contact_fraction, coupling_n_m)
+    if (len(orders) < 2 or any(not 4 <= order <= 50 for order in orders)
+            or any(right <= left for left, right in zip(orders, orders[1:]))
+            or len(positions) != 2 or any(not 0 < x < 1 for x in positions)
+            or not .0001 <= damping <= .3 or bridge_mass_kg < 0
+            or modulus_gpa <= 0 or density_kg_m3 <= 0
+            or boundary != 'Appuis simples'):
+        raise ValueError('Le calcul spectral exige des appuis simples et des paramètres valides.')
+    plate, _, support = museum_case()
+    modulus = modulus_gpa * 1e9
+    plate = replace(plate, bridge_mass=bridge_mass_kg, Es=modulus, Eu=modulus,
+                    G=modulus / (2 * (1 + plate.nu)), rho=density_kg_m3,
+                    boundary=boundary, damping=damping)
+    support = replace(support, enabled=support_enabled)
+    rows = []
+    for order in orders:
+        for position in positions:
+            case_plate = replace(plate, bridge_s=plate.H * (1 - position))
+            system = build_spectral_system(
+                case_plate, wires, support, order=order,
+                center_height=center_height_m, receiver=receiver_xyz_m,
+                integration_points=integration_points)
+            for index, item in enumerate(string_info):
+                pressure = (spectral_pressure(system, wires[index], index,
+                                              item['frequency_hz'])
+                            if item['active'] else 0j)
+                rows.append(dict(order=order, bridge_top_fraction=position,
+                                 number=index + 1, pressure_peak_per_n=pressure,
+                                 pressure_rms_per_n=abs(pressure) / np.sqrt(2)))
+    return rows, string_info
+
+
 def summarize_instrument(results, string_info, tolerance=.10):
     orders = sorted({item['order'] for item in results})
     positions = sorted({item['bridge_top_fraction'] for item in results})
-    if len(orders) != 2 or len(positions) != 2:
-        raise ValueError('Deux résolutions et deux positions sont nécessaires.')
+    if len(orders) < 2 or len(positions) != 2:
+        raise ValueError('Au moins deux résolutions et deux positions sont nécessaires.')
     lookup = {(item['number'], item['order'], item['bridge_top_fraction']): item
               for item in results}
     rows = []
@@ -127,11 +169,13 @@ def summarize_instrument(results, string_info, tolerance=.10):
         row = dict(item)
         changes = []
         for position in positions:
-            old = lookup[(item['number'], orders[0], position)]
-            current = lookup[(item['number'], orders[1], position)]
-            a, b = old['pressure_rms_per_n'], current['pressure_rms_per_n']
-            change = abs(a - b) / max(a, b, 1e-30)
-            row[f'pressure_{position:g}'] = b
+            series = [lookup[(item['number'], order, position)]
+                      for order in orders]
+            magnitudes = [entry['pressure_rms_per_n'] for entry in series]
+            change = ((max(magnitudes) - min(magnitudes))
+                      / max(max(magnitudes), 1e-30))
+            current = series[-1]
+            row[f'pressure_{position:g}'] = current['pressure_rms_per_n']
             row[f'complex_{position:g}'] = current['pressure_peak_per_n']
             row[f'convergence_{position:g}'] = change
             changes.append(change)
@@ -166,6 +210,31 @@ def combined_sound(rows, position, *, phase_locked=True):
                           level_db_spl=acoustic_level(float(np.sqrt(line_power)))))
     return dict(pressure_rms_pa=float(np.sqrt(power)),
                 level_db_spl=acoustic_level(float(np.sqrt(power))), lines=lines)
+
+
+def collective_convergence(results, string_info, *, phase_locked=False):
+    """Convergence du niveau collectif, distincte de chaque transfert individuel."""
+    orders = sorted({item['order'] for item in results})
+    positions = sorted({item['bridge_top_fraction'] for item in results})
+    if len(orders) < 2:
+        raise ValueError('Deux résolutions sont nécessaires.')
+    output = {}
+    for position in positions:
+        pressures = []
+        for order in orders:
+            rows = []
+            for raw in results:
+                if raw['order'] != order or raw['bridge_top_fraction'] != position:
+                    continue
+                item = string_info[raw['number'] - 1]
+                rows.append(dict(item, **{f'complex_{position:g}': raw['pressure_peak_per_n']}))
+            sound = combined_sound(rows, position, phase_locked=phase_locked)
+            pressures.append(sound['pressure_rms_pa'])
+        span = (max(pressures) - min(pressures)) / max(max(pressures), 1e-30)
+        output[position] = dict(orders=orders, pressure_rms_pa=pressures,
+                                relative_span=span,
+                                latest_level_db_spl=acoustic_level(pressures[-1]))
+    return output
 
 
 def preview_audio(rows, position, duration_s=5., sample_rate=8000):
