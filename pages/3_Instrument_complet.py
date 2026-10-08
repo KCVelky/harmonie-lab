@@ -168,7 +168,7 @@ with tab_results:
     if st.button('Calculer les 25 cordes et les deux chevalets', type='primary',
                  disabled=string_info is None):
         try:
-            with st.spinner('Assemblage des cordes, des deux positions et des deux résolutions…'):
+            with st.spinner('Assemblage des cordes, des deux positions et des résolutions choisies…'):
                 results, information = calculate(
                     scenario_key, tuple(tuple(row.items()) for row in records),
                     tuple(parameters.items()), solver)

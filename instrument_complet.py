@@ -6,6 +6,7 @@ import wave
 
 import numpy as np
 from numpy.polynomial.legendre import leggauss
+from threadpoolctl import threadpool_limits
 
 from audibilite import museum_case
 from physics import assemble, basis, response, string_frequencies, tension_for
@@ -116,6 +117,7 @@ def evaluate_instrument(records, *, contact_fraction=.05, coupling_n_m=500.,
     return results, string_info
 
 
+@threadpool_limits.wrap(limits=1, user_api='blas')
 def evaluate_instrument_spectral(records, *, contact_fraction=.05,
                                  coupling_n_m=500., damping=.012,
                                  bridge_mass_kg=5., modulus_gpa=10.,

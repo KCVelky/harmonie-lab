@@ -3,3 +3,4 @@ scipy==1.17.0
 pandas==2.2.3
 plotly==7.0.0
 streamlit==1.63.0
+threadpoolctl==3.7.0
