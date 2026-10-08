@@ -49,6 +49,12 @@ Une section facultative accepte des mesures acoustiques **étalonnées** au mêm
 
 Les boutons de calcul de réponse et de son génèrent un résultat pour les réglages courants. Un changement de paramètre peut effacer l'affichage du résultat : recliquer pour le recalculer.
 
+### Page « Projection acoustique »
+
+Cette page ajoute une projection **conditionnelle** de la réponse de la table vers un point d'écoute. Elle compare le chevalet à 10 % et 22,5 % depuis le haut, pour les 5e et 7e harmoniques d'une corde de 7,45 à 11,55 m. Le moteur structurel reste Rayleigh–Ritz ; seule une vérification indépendante de la corde tendue utilise des éléments finis 1D. La pression est calculée par intégrale de Rayleigh pour la face avant d'une table placée dans un écran rigide infini, sans salle, sans arrière ouvert et sans effet de boîte. Ce n'est **pas encore** un modèle éléments finis complet de l'instrument.
+
+Le résultat principal est un transfert en Pa RMS par newton de **force harmonique crête** à l'aimant. Une force nécessaire pour atteindre un niveau cible ne s'affiche qu'avec un bruit de fond saisi ; un niveau en dB SPL ne s'affiche qu'avec une force saisie. Dans les deux cas, le résultat dépend des hypothèses et ne prouve pas l'audibilité réelle dans le musée. La page vérifie la variation entre les ordres structurels 12 et 14 et n'affiche pas de force seuil ou de dB conditionnels pour une bande qui varie de plus de 10 %. Elle exporte les résultats mécano-acoustiques en CSV. Le calcul peut être exécuté localement avec la même interface Streamlit ; la version en ligne reste adaptée à cette étude légère.
+
 Le fichier `exemple_fur_elise.csv` peut être chargé directement depuis l'interface. La mélodie est transposée une octave plus bas afin de rester proche des harmoniques disponibles avec les cordes par défaut.
 
 ## Inclus
@@ -61,6 +67,7 @@ Le fichier `exemple_fur_elise.csv` peut être chargé directement depuis l'inter
 - Géométrie 3D orientable, carte des nœuds, balayage fréquentiel.
 - Scénario musée 5 × 8 pi, jonction centrale visible et traverse en bois ajoutée au calcul.
 - Comparaison à une corde des positions de chevalet 10 % et 22,5 %, contrôle de convergence et lecture du WAV T12.
+- Projection acoustique conditionnelle vers un point d'écoute, seuil de force associé à un bruit de fond saisi et contrôle éléments finis 1D de la corde.
 - Tableau des fréquences réellement imposées et de leur réponse relative sur la table.
 - Choix guidé des harmoniques, accordage inverse et recherche d'épaisseur.
 - Lecture de séquences musicales CSV et export du pilotage des électroaimants en CSV ou JSON.
@@ -85,4 +92,4 @@ Adapter python au chemin de votre environnement virtuel. Les tests couvrent le c
 
 Bibliothèques : NumPy, SciPy, pandas, Plotly, Streamlit. Aucune bibliothèque audio système, carte graphique spécialisée ou licence de calcul n'est requise. Un navigateur avec WebGL est nécessaire pour la 3D.
 
-Fichiers principaux : app.py (interface), physics.py (mécanique), visuals.py (3D), materials.py (présélections et provenance).
+Fichiers principaux : app.py (interface), physics.py (mécanique), rayonnement.py (projection acoustique idéalisée), visuals.py (3D), materials.py (présélections et provenance).

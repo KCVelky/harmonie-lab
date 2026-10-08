@@ -62,7 +62,21 @@ Le WAV est une sonification de l'accélération normale en un point choisi de la
 
 Le signal est normalisé à chaque génération, avec fondus de 25 ms, et exporté à 44,1 kHz / PCM 16 bits. Comparer deux volumes ne permet donc pas de comparer leur rendement. Les modes dépassant 0,45 fois la fréquence d'échantillonnage sont exclus de l'impulsion.
 
-Le rayonnement acoustique de la plaque, les annulations entre lobes, l'effet dipolaire de l'arrière ouvert, la cavité, le local et le haut-parleur d'écoute ne sont pas calculés. Aucun niveau en dB SPL n'est revendiqué. Le timbre réel pourrait être très différent.
+Dans l'interface principale, le rayonnement acoustique de la plaque, les annulations entre lobes, l'effet dipolaire de l'arrière ouvert, la cavité, le local et le haut-parleur d'écoute ne sont pas calculés. Aucun niveau en dB SPL n'est revendiqué pour cet audio normalisé. Le timbre réel pourrait être très différent. Une page distincte donne une projection acoustique sous hypothèse d'écran rigide infini, décrite ci-dessous.
+
+### Projection acoustique conditionnelle
+
+La page « Projection acoustique » reprend la réponse mécanique couplée de `physics.py` pour une corde, avec une force harmonique crête normalisée à 1 N au premier aimant, un second aimant désactivé et un entrefer de référence de 3 mm. Les fréquences de force sont les 5e et 7e fréquences de la corde **isolée** ; la réponse contient bien le couplage corde–table. La masse du chevalet (5 kg par défaut sur cette page), le module et la masse volumique isotropes du panneau, la traverse, le contact et les appuis sont des **hypothèses modifiables**, non des données identifiées du prototype. La table est supposée verticale, son centre à une hauteur réglable, la face avant orientée vers la distance positive du point d'écoute.
+
+Pour les phasors définis avec une dépendance temporelle exp(iωt), la pression complexe de la face avant dans un **écran rigide infini** est obtenue par l'intégrale de Rayleigh :
+
+`p(r) = -ρ_air ω²/(2π) ∫_S w(x) exp(-ikR)/R dS`, avec `R=|r-x|` et `k=ω/c`.
+
+Ici `w(x)` est l'amplitude complexe crête du déplacement normal. Les valeurs utilisées sont ρ_air=1,20 kg/m³ et c=343 m/s ; l'intégration est faite par quadrature de Gauss 48 × 48. Le transfert affiché est `|p|/(√2 F_crête)` en Pa RMS/N crête. Pour une force crête saisie `F`, le niveau conditionnel est `20 log10[(|p| F /√2)/(20 µPa)]` dB SPL. Le calcul inverse de force pour une cible `L_cible` est `F_requise = 20 µPa × 10^(L_cible/20) / transfert`. Ces relations sont linéaires seulement tant que la mécanique, l'électroaimant et le contact peuvent être linéarisés autour de leur état de fonctionnement.
+
+L'intégrale conserve les phases de chaque zone de la table et peut produire des annulations spatiales. Elle ne représente pas le dos ouvert, une éventuelle cavité, les réflexions et modes de la salle, la diffraction du cadre, ni le chargement de retour de l'air sur la structure. Le résultat ne constitue donc ni une borne garantie ni une prédiction de niveau dans le musée. La force magnétique dynamique sur le fil de 0,762 mm est inconnue. Les valeurs en dB n'apparaissent qu'après saisie explicite d'une force ; l'utilisateur doit distinguer hypothèse et mesure. Le bruit de fond n'est pas présumé connu : il doit être saisi dans la même bande avant un calcul de force requise. Une marge au-dessus du fond reste une cible choisie, pas une loi d'audibilité.
+
+La stabilité numérique de la projection est vérifiée en comparant les ordres de Rayleigh–Ritz 12 et 14, avec une variation relative maximale de 10 % pour chacun des deux emplacements de chevalet. Une bande qui dépasse ce seuil n'alimente pas les résultats conditionnels de force seuil ou de dB. Cette vérification ne couvre ni les erreurs de modèle ni les incertitudes des données. Une vérification séparée de la corde sous tension utilise des éléments finis 1D linéaires à masse cohérente, avec 48 et 96 éléments, comparés à `f_n=n/(2L)√(T/µ)`. La flexion du fil est omise dans ce seul contrôle 1D mais reste incluse dans le modèle couplé. La plaque n'est pas encore discrétisée par éléments finis.
 
 ### Page d'audibilité et mesure acoustique
 
